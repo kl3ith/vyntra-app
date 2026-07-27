@@ -22,7 +22,7 @@ export default function App() {
 
       <nav
         className="fixed bottom-0 left-0 right-0 flex justify-around border-t border-charcoal-soft
-                   bg-charcoal/95 py-2 backdrop-blur-sm"
+                   bg-charcoal/95 pt-2 backdrop-blur-sm"
         style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
       >
         <NavTab to="/" label="Entrenar" icon={Dumbbell} />
