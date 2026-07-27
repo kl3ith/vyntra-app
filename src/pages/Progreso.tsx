@@ -129,7 +129,7 @@ export default function Progreso() {
       .slice(-12)
   })()
 
-  const currentWeight = chartPoints.at(-1)?.weight ?? null
+  const currentWeight = chartPoints.length > 0 ? chartPoints[chartPoints.length - 1].weight : null
   const allTimePR = chartPoints.reduce((m, p) => Math.max(m, p.weight), 0)
 
   const stats = [
