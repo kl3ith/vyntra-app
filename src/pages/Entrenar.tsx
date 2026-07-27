@@ -27,6 +27,9 @@ const SEED_EXERCISES: Exercise[] = [
 
 const SEED_TEMPLATE_ID = 'tpl-chest-shoulders-tri'
 
+const FILTER_GROUPS = ['Todos', 'Pecho', 'Espalda', 'Piernas', 'Hombros', 'Brazos', 'Core']
+const ARM_GROUPS = new Set(['Bíceps', 'Tríceps'])
+
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
   const h = Math.floor(totalSec / 3600)
@@ -45,6 +48,7 @@ export default function Entrenar() {
   const [exerciseOrder, setExerciseOrder] = useState<string[]>([])
   const [showPicker, setShowPicker] = useState(false)
   const [pickerQuery, setPickerQuery] = useState('')
+  const [pickerGroup, setPickerGroup] = useState('Todos')
   const [inputs, setInputs] = useState<Record<string, SetInput>>({})
   const [userName] = useState(() => localStorage.getItem('vyntra-name') ?? '')
 
@@ -113,9 +117,14 @@ export default function Entrenar() {
     setInputs({})
   }
 
+  function openPicker() {
+    setPickerQuery('')
+    setPickerGroup('Todos')
+    setShowPicker(true)
+  }
+
   function pickExercise(exId: string) {
     setExerciseOrder(prev => (prev.includes(exId) ? prev : [...prev, exId]))
-    setPickerQuery('')
     setShowPicker(false)
   }
 
@@ -155,11 +164,15 @@ export default function Entrenar() {
     return acc
   }, {})
 
-  const filteredExercises = (allExercises ?? []).filter(
-    e =>
+  const filteredExercises = (allExercises ?? []).filter(e => {
+    const matchesGroup =
+      pickerGroup === 'Todos' ||
+      (pickerGroup === 'Brazos' ? ARM_GROUPS.has(e.muscleGroup) : e.muscleGroup === pickerGroup)
+    const matchesQuery =
       e.name.toLowerCase().includes(pickerQuery.toLowerCase()) ||
-      e.muscleGroup.toLowerCase().includes(pickerQuery.toLowerCase()),
-  )
+      e.muscleGroup.toLowerCase().includes(pickerQuery.toLowerCase())
+    return matchesGroup && matchesQuery
+  })
 
   if (!activeWorkoutId) {
     return (
@@ -269,7 +282,7 @@ export default function Entrenar() {
                   <p className="font-display text-base text-ink-light">{ex.name}</p>
                   <p className="text-xs text-ink">{ex.muscleGroup}</p>
                 </div>
-                <span className="text-xs text-ink">
+                <span className="flex-shrink-0 text-xs text-ink">
                   {sets.length} {sets.length === 1 ? 'serie' : 'series'}
                 </span>
               </div>
@@ -288,13 +301,13 @@ export default function Entrenar() {
                       className="grid grid-cols-[1.5rem_1fr_1fr_1.5rem] items-center gap-2"
                     >
                       <span className="text-xs text-ink">{i + 1}</span>
-                      <div className="flex items-center gap-1 rounded-lg bg-charcoal px-3 py-1.5">
+                      <div className="flex min-w-0 items-center gap-1 rounded-lg bg-charcoal px-3 py-1.5">
                         <span className="text-sm text-ink-light">{s.weightKg}</span>
                         {s.isPR && (
                           <Trophy size={11} className="ml-auto flex-shrink-0 text-gold" />
                         )}
                       </div>
-                      <div className="rounded-lg bg-charcoal px-3 py-1.5">
+                      <div className="min-w-0 rounded-lg bg-charcoal px-3 py-1.5">
                         <span className="text-sm text-ink-light">{s.reps}</span>
                       </div>
                       <button
@@ -317,7 +330,7 @@ export default function Entrenar() {
                   onChange={e =>
                     setInputs(prev => ({ ...prev, [exId]: { ...inp, weight: e.target.value } }))
                   }
-                  className="rounded-lg bg-charcoal px-3 py-2 text-sm text-ink-light outline-none placeholder:text-ink"
+                  className="min-w-0 rounded-lg bg-charcoal px-3 py-2 text-sm text-ink-light outline-none placeholder:text-ink"
                 />
                 <input
                   type="number"
@@ -327,11 +340,11 @@ export default function Entrenar() {
                   onChange={e =>
                     setInputs(prev => ({ ...prev, [exId]: { ...inp, reps: e.target.value } }))
                   }
-                  className="rounded-lg bg-charcoal px-3 py-2 text-sm text-ink-light outline-none placeholder:text-ink"
+                  className="min-w-0 rounded-lg bg-charcoal px-3 py-2 text-sm text-ink-light outline-none placeholder:text-ink"
                 />
                 <button
                   onClick={() => logSet(exId)}
-                  className="flex items-center gap-1 rounded-lg bg-gold px-4 py-2 font-display text-xs tracking-wide text-charcoal active:bg-gold-dark"
+                  className="flex flex-shrink-0 items-center gap-1 rounded-lg bg-gold px-4 py-2 font-display text-xs tracking-wide text-charcoal active:bg-gold-dark"
                 >
                   <Plus size={14} />
                   Serie
@@ -343,7 +356,7 @@ export default function Entrenar() {
 
         <div className="flex justify-center py-2">
           <button
-            onClick={() => { setPickerQuery(''); setShowPicker(true) }}
+            onClick={openPicker}
             className="flex items-center gap-2 rounded-full border border-charcoal-soft px-6 py-3 text-sm text-ink-light active:bg-charcoal-soft"
           >
             <Plus size={16} className="text-gold" />
@@ -353,10 +366,13 @@ export default function Entrenar() {
       </div>
 
       {showPicker && (
-        <div className="fixed inset-0 z-50 flex flex-col bg-charcoal">
-          <div className="flex items-center justify-between px-5 pb-4 pt-8">
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-charcoal"
+          style={{ paddingTop: 'env(safe-area-inset-top)' }}
+        >
+          <div className="flex items-center justify-between px-5 pb-3 pt-5">
             <h2 className="font-display text-lg text-ink-light">Elegir ejercicio</h2>
-            <button onClick={() => setShowPicker(false)}>
+            <button onClick={() => setShowPicker(false)} className="p-1">
               <X size={22} className="text-ink" />
             </button>
           </div>
@@ -372,20 +388,41 @@ export default function Entrenar() {
             />
           </div>
 
-          <div className="mt-3 flex-1 overflow-y-auto px-5 pb-8">
-            {filteredExercises.map(ex => (
+          <div className="mt-3 flex gap-2 overflow-x-auto px-5 pb-1">
+            {FILTER_GROUPS.map(g => (
               <button
-                key={ex.id}
-                onClick={() => pickExercise(ex.id)}
-                className="flex w-full items-center justify-between border-b border-charcoal-soft py-4 last:border-0"
+                key={g}
+                onClick={() => setPickerGroup(g)}
+                className={[
+                  'whitespace-nowrap rounded-full border px-3 py-1 text-xs transition-colors',
+                  pickerGroup === g
+                    ? 'border-gold bg-gold/10 text-gold'
+                    : 'border-charcoal-soft text-ink-light',
+                ].join(' ')}
               >
-                <div className="text-left">
-                  <p className="text-sm text-ink-light">{ex.name}</p>
-                  <p className="text-xs text-ink">{ex.muscleGroup}</p>
-                </div>
-                <Plus size={18} className="flex-shrink-0 text-gold" />
+                {g}
               </button>
             ))}
+          </div>
+
+          <div className="mt-2 flex-1 overflow-y-auto px-5 pb-8">
+            {filteredExercises.length === 0 ? (
+              <p className="py-8 text-center text-sm text-ink">Sin resultados</p>
+            ) : (
+              filteredExercises.map(ex => (
+                <button
+                  key={ex.id}
+                  onClick={() => pickExercise(ex.id)}
+                  className="flex w-full items-center justify-between border-b border-charcoal-soft py-4 last:border-0"
+                >
+                  <div className="text-left">
+                    <p className="text-sm text-ink-light">{ex.name}</p>
+                    <p className="text-xs text-ink">{ex.muscleGroup}</p>
+                  </div>
+                  <Plus size={18} className="flex-shrink-0 text-gold" />
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
