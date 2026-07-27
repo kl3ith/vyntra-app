@@ -2,22 +2,30 @@ import { useState, useEffect } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
 import type { Exercise, WorkoutSet } from '../lib/db'
-import { Timer, Search, Plus, X, Trophy, Dumbbell } from 'lucide-react'
+import { Timer, Search, Plus, X, Trophy, Dumbbell, Play } from 'lucide-react'
 
 const SEED_EXERCISES: Exercise[] = [
-  { id: 'ex-bench',    name: 'Press de banca',          muscleGroup: 'Pecho' },
-  { id: 'ex-incline',  name: 'Press inclinado',          muscleGroup: 'Pecho' },
-  { id: 'ex-squat',    name: 'Sentadilla',               muscleGroup: 'Piernas' },
-  { id: 'ex-deadlift', name: 'Peso muerto',              muscleGroup: 'Espalda' },
-  { id: 'ex-ohp',      name: 'Press militar',            muscleGroup: 'Hombros' },
-  { id: 'ex-row',      name: 'Remo con barra',           muscleGroup: 'Espalda' },
-  { id: 'ex-pullup',   name: 'Dominadas',                muscleGroup: 'Espalda' },
-  { id: 'ex-curl',     name: 'Curl de bíceps',           muscleGroup: 'Bíceps' },
-  { id: 'ex-dips',     name: 'Fondos en paralelas',      muscleGroup: 'Tríceps' },
-  { id: 'ex-lunge',    name: 'Zancadas',                 muscleGroup: 'Piernas' },
-  { id: 'ex-calf',     name: 'Elevación de talones',     muscleGroup: 'Piernas' },
-  { id: 'ex-plank',    name: 'Plancha',                  muscleGroup: 'Core' },
+  { id: 'ex-bench',      name: 'Press de banca',             muscleGroup: 'Pecho' },
+  { id: 'ex-incline',    name: 'Press inclinado',             muscleGroup: 'Pecho' },
+  { id: 'ex-incline-db', name: 'Press inclinado mancuernas', muscleGroup: 'Pecho' },
+  { id: 'ex-fly',        name: 'Apertura en máquina',         muscleGroup: 'Pecho' },
+  { id: 'ex-squat',      name: 'Sentadilla',                  muscleGroup: 'Piernas' },
+  { id: 'ex-deadlift',   name: 'Peso muerto',                 muscleGroup: 'Espalda' },
+  { id: 'ex-ohp',        name: 'Press militar',               muscleGroup: 'Hombros' },
+  { id: 'ex-ohp-db',     name: 'Press militar mancuernas',   muscleGroup: 'Hombros' },
+  { id: 'ex-lateral',    name: 'Elevación lateral',           muscleGroup: 'Hombros' },
+  { id: 'ex-front',      name: 'Elevación frontal',           muscleGroup: 'Hombros' },
+  { id: 'ex-row',        name: 'Remo con barra',              muscleGroup: 'Espalda' },
+  { id: 'ex-pullup',     name: 'Dominadas',                   muscleGroup: 'Espalda' },
+  { id: 'ex-curl',       name: 'Curl de bíceps',              muscleGroup: 'Bíceps' },
+  { id: 'ex-dips',       name: 'Fondos en paralelas',         muscleGroup: 'Tríceps' },
+  { id: 'ex-pushdown',   name: 'Jalón de tríceps',            muscleGroup: 'Tríceps' },
+  { id: 'ex-lunge',      name: 'Zancadas',                    muscleGroup: 'Piernas' },
+  { id: 'ex-calf',       name: 'Elevación de talones',        muscleGroup: 'Piernas' },
+  { id: 'ex-plank',      name: 'Plancha',                     muscleGroup: 'Core' },
 ]
+
+const SEED_TEMPLATE_ID = 'tpl-chest-shoulders-tri'
 
 function formatElapsed(ms: number): string {
   const totalSec = Math.floor(ms / 1000)
@@ -38,8 +46,14 @@ export default function Entrenar() {
   const [showPicker, setShowPicker] = useState(false)
   const [pickerQuery, setPickerQuery] = useState('')
   const [inputs, setInputs] = useState<Record<string, SetInput>>({})
+  const [userName] = useState(() => localStorage.getItem('vyntra-name') ?? '')
 
   const allExercises = useLiveQuery(() => db.exercises.toArray(), [])
+  const templates = useLiveQuery(() => db.templates.toArray(), [])
+  const lastWorkout = useLiveQuery(
+    () => db.workouts.orderBy('startedAt').reverse().filter(w => !!w.endedAt).first(),
+    [],
+  )
   const workoutSets = useLiveQuery(
     (): Promise<WorkoutSet[]> =>
       activeWorkoutId
@@ -49,8 +63,15 @@ export default function Entrenar() {
   )
 
   useEffect(() => {
-    db.exercises.count().then(n => {
-      if (n === 0) db.exercises.bulkAdd(SEED_EXERCISES)
+    db.exercises.bulkPut(SEED_EXERCISES)
+    db.templates.get(SEED_TEMPLATE_ID).then(t => {
+      if (!t) {
+        db.templates.add({
+          id: SEED_TEMPLATE_ID,
+          name: 'Pecho · Hombros · Tríceps',
+          exerciseIds: ['ex-dips', 'ex-ohp-db', 'ex-incline-db', 'ex-fly', 'ex-lateral', 'ex-front', 'ex-pushdown'],
+        })
+      }
     })
   }, [])
 
@@ -60,15 +81,26 @@ export default function Entrenar() {
     return () => clearInterval(id)
   }, [startedAt])
 
-  async function startWorkout() {
+  async function startWorkout(exIds: string[] = []) {
     const id = crypto.randomUUID()
     const now = Date.now()
     await db.workouts.add({ id, startedAt: now, synced: false })
     setActiveWorkoutId(id)
     setStartedAt(now)
     setElapsed(0)
-    setExerciseOrder([])
+    setExerciseOrder(exIds)
     setInputs({})
+  }
+
+  async function repeatLastWorkout() {
+    if (!lastWorkout) return
+    const sets = await db.sets.where('workoutId').equals(lastWorkout.id).sortBy('order')
+    const seen = new Set<string>()
+    const exIds: string[] = []
+    for (const s of sets) {
+      if (!seen.has(s.exerciseId)) { seen.add(s.exerciseId); exIds.push(s.exerciseId) }
+    }
+    await startWorkout(exIds)
   }
 
   async function finishWorkout() {
@@ -135,7 +167,9 @@ export default function Entrenar() {
         <div className="flex items-center gap-3">
           <div className="h-14 w-14 rounded-full bg-charcoal-soft" />
           <div>
-            <p className="font-display text-lg text-ink-light">Bienvenido de vuelta</p>
+            <p className="font-display text-lg text-ink-light">
+              {userName ? `Bienvenido, ${userName}` : 'Bienvenido de vuelta'}
+            </p>
             <p className="text-sm text-gold-light">Cinta Blanca · Semana 1</p>
           </div>
         </div>
@@ -150,23 +184,49 @@ export default function Entrenar() {
         </div>
 
         <button
-          onClick={startWorkout}
+          onClick={() => startWorkout()}
           className="mt-6 w-full rounded-xl bg-gold py-4 text-center font-display text-base
                      tracking-wide text-charcoal active:bg-gold-dark"
         >
           Iniciar entrenamiento vacío
         </button>
 
-        <button className="mt-3 w-full rounded-xl border border-charcoal-soft py-3 text-sm text-ink-light">
+        <button
+          onClick={repeatLastWorkout}
+          disabled={!lastWorkout}
+          className="mt-3 w-full rounded-xl border border-charcoal-soft py-3 text-sm text-ink-light
+                     disabled:opacity-40 active:bg-charcoal-soft"
+        >
           Rehacer última rutina
         </button>
 
         <h2 className="mt-8 font-display text-sm uppercase tracking-widest text-ink">
           Mis plantillas
         </h2>
-        <div className="mt-3 rounded-xl border border-dashed border-charcoal-soft p-6 text-center text-sm text-ink">
-          Todavía no guardaste ninguna rutina.
-        </div>
+
+        {(templates ?? []).length === 0 ? (
+          <div className="mt-3 rounded-xl border border-dashed border-charcoal-soft p-6 text-center text-sm text-ink">
+            Todavía no guardaste ninguna rutina.
+          </div>
+        ) : (
+          <div className="mt-3 space-y-2">
+            {(templates ?? []).map(tpl => (
+              <button
+                key={tpl.id}
+                onClick={() => startWorkout(tpl.exerciseIds)}
+                className="flex w-full items-center justify-between rounded-xl bg-charcoal-soft px-4 py-3 active:bg-charcoal"
+              >
+                <div className="text-left">
+                  <p className="font-display text-sm text-ink-light">{tpl.name}</p>
+                  <p className="mt-0.5 text-xs text-ink">
+                    {tpl.exerciseIds.length} ejercicios
+                  </p>
+                </div>
+                <Play size={18} className="flex-shrink-0 text-gold" />
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
