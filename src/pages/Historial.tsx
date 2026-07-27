@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import { db } from '../lib/db'
-import { ChevronDown, ChevronUp, Clock, Dumbbell, Trophy } from 'lucide-react'
+import { ChevronDown, ChevronUp, Clock, Dumbbell, Trophy, Trash2, X } from 'lucide-react'
 
 const MONTH_NAMES = [
   'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -35,6 +35,7 @@ export default function Historial() {
   const [viewMonth, setViewMonth] = useState(now.getMonth())
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [selectedDay, setSelectedDay] = useState<number | null>(null)
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null)
 
   const workouts = useLiveQuery(
     () => db.workouts.orderBy('startedAt').reverse().toArray(),
@@ -76,6 +77,13 @@ export default function Historial() {
     setSelectedDay(null)
     if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1) }
     else setViewMonth(m => m + 1)
+  }
+
+  async function deleteWorkout(id: string) {
+    await db.sets.where('workoutId').equals(id).delete()
+    await db.workouts.delete(id)
+    setConfirmDelete(null)
+    if (expandedId === id) setExpandedId(null)
   }
 
   return (
@@ -148,14 +156,15 @@ export default function Historial() {
           const isExpanded = expandedId === workout.id
           const duration = workout.endedAt ? workout.endedAt - workout.startedAt : null
           const prCount = sets.filter(s => s.isPR).length
+          const isPendingDelete = confirmDelete === workout.id
 
           return (
             <div key={workout.id} className="overflow-hidden rounded-xl bg-charcoal-soft">
-              <button
-                className="flex w-full items-start justify-between p-4"
-                onClick={() => setExpandedId(isExpanded ? null : workout.id)}
-              >
-                <div className="min-w-0 flex-1 text-left">
+              <div className="flex items-start gap-2 p-4">
+                <button
+                  className="min-w-0 flex-1 text-left"
+                  onClick={() => setExpandedId(isExpanded ? null : workout.id)}
+                >
                   <p className="font-display text-base capitalize text-ink-light">
                     {formatDate(workout.startedAt)}
                   </p>
@@ -192,14 +201,40 @@ export default function Historial() {
                       ))}
                     </div>
                   )}
-                </div>
+                </button>
 
-                <div className="ml-3 mt-1 flex-shrink-0">
-                  {isExpanded
-                    ? <ChevronUp size={16} className="text-ink" />
-                    : <ChevronDown size={16} className="text-ink" />}
+                <div className="flex flex-shrink-0 flex-col items-end gap-2 pt-0.5">
+                  <button onClick={() => setExpandedId(isExpanded ? null : workout.id)}>
+                    {isExpanded
+                      ? <ChevronUp size={16} className="text-ink" />
+                      : <ChevronDown size={16} className="text-ink" />}
+                  </button>
+
+                  {isPendingDelete ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setConfirmDelete(null)}
+                        className="text-ink"
+                      >
+                        <X size={14} />
+                      </button>
+                      <button
+                        onClick={() => deleteWorkout(workout.id)}
+                        className="rounded-lg bg-warn px-2 py-1 font-display text-xs tracking-wide text-ink-light"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDelete(workout.id)}
+                      className="text-ink active:text-warn"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  )}
                 </div>
-              </button>
+              </div>
 
               {isExpanded && (
                 <div className="space-y-4 border-t border-charcoal px-4 pb-4 pt-3">
