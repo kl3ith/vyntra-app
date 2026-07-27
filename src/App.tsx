@@ -9,8 +9,8 @@ import Perfil from './pages/Perfil'
 
 export default function App() {
   return (
-    <div className="flex h-full flex-col">
-      <main className="flex-1 overflow-y-auto pb-20">
+    <div className="flex h-full flex-col" style={{ paddingTop: 'env(safe-area-inset-top)' }}>
+      <main className="flex-1 overflow-y-auto" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))' }}>
         <Routes>
           <Route path="/" element={<Entrenar />} />
           <Route path="/historial" element={<Historial />} />
